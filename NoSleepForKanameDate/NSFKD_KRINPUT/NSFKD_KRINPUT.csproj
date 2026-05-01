@@ -1,0 +1,104 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>NSFKD_KRINPUT</AssemblyName>
+    <GameDir Condition="'$(GameDir)' == ''">E:\Games\NoSleepForKanameDate</GameDir>
+    <ModsDir>$(GameDir)\Mods</ModsDir>
+    <InteropDir>$(GameDir)\MelonLoader\Il2CppAssemblies</InteropDir>
+    <MelonNet6Dir>$(GameDir)\MelonLoader\net6</MelonNet6Dir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="MelonLoader">
+      <HintPath>$(MelonNet6Dir)\MelonLoader.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(MelonNet6Dir)\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Runtime">
+      <HintPath>$(MelonNet6Dir)\Il2CppInterop.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Common">
+      <HintPath>$(MelonNet6Dir)\Il2CppInterop.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.HarmonySupport">
+      <HintPath>$(MelonNet6Dir)\Il2CppInterop.HarmonySupport.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(InteropDir)\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>$(InteropDir)\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppSystem">
+      <HintPath>$(InteropDir)\Il2CppSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppSystem.Core">
+      <HintPath>$(InteropDir)\Il2CppSystem.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+
+    <Reference Include="UnityEngine">
+      <HintPath>$(InteropDir)\UnityEngine.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(InteropDir)\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>$(InteropDir)\UnityEngine.AnimationModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(InteropDir)\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(InteropDir)\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$(InteropDir)\Unity.InputSystem.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(InteropDir)\UnityEngine.UI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(InteropDir)\Unity.TextMeshPro.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="CopyToGameMods" AfterTargets="Build">
+    <MakeDir Directories="$(ModsDir)" />
+    <MakeDir Directories="$(ModsDir)\NSFKD_KRINPUT_Sprite" Condition="Exists('$(MSBuildProjectDirectory)\NSFKD_KRINPUT_Sprite')" />
+    <ItemGroup>
+      <ModOutputFiles Include="$(TargetPath)" />
+      <ModOutputFiles Include="$(TargetDir)$(AssemblyName).pdb" Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
+      <ModOutputFiles Include="$(MSBuildProjectDirectory)\NSFKD_KRINPUT_Keymap.json" Condition="Exists('$(MSBuildProjectDirectory)\NSFKD_KRINPUT_Keymap.json')" />
+      <SpriteFiles Include="$(MSBuildProjectDirectory)\NSFKD_KRINPUT_Sprite\**\*" Condition="Exists('$(MSBuildProjectDirectory)\NSFKD_KRINPUT_Sprite')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ModOutputFiles)" DestinationFolder="$(ModsDir)" SkipUnchangedFiles="true" />
+    <Copy
+      SourceFiles="@(SpriteFiles)"
+      DestinationFiles="@(SpriteFiles->'$(ModsDir)\NSFKD_KRINPUT_Sprite\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Copied %(ModOutputFiles.Filename)%(ModOutputFiles.Extension) to $(ModsDir)" />
+  </Target>
+</Project>
