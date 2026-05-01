@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>MenherariumKRLocalize</AssemblyName>
+    <RootNamespace>Snowyegret.MenherariumTranslator</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <IncludeAssembly Include="$(MSBuildProjectDirectory)\..\..\includes\melonloader\net6\*.dll" />
+    <IncludeAssembly Include="$(MSBuildProjectDirectory)\..\..\includes\game\Il2CppAssemblies\*.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="@(IncludeAssembly)">
+      <HintPath>%(Identity)</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="EnsureLocalDependencies" BeforeTargets="ResolveReferences">
+    <Error Condition="!Exists('..\..\includes\melonloader\net6\MelonLoader.dll')" Text="Missing include dependency: includes\melonloader\net6\MelonLoader.dll. Run .\sync-includes.ps1 first." />
+    <Error Condition="!Exists('..\..\includes\melonloader\net6\0Harmony.dll')" Text="Missing include dependency: includes\melonloader\net6\0Harmony.dll. Run .\sync-includes.ps1 first." />
+    <Error Condition="!Exists('..\..\includes\game\Il2CppAssemblies\Assembly-CSharp.dll')" Text="Missing include dependency: includes\game\Il2CppAssemblies\Assembly-CSharp.dll. Run .\sync-includes.ps1 first." />
+  </Target>
+
+</Project>
