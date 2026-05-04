@@ -13,6 +13,10 @@ import os
 import zlib
 import argparse
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 try:
     from PIL import Image
     import texture2ddecoder

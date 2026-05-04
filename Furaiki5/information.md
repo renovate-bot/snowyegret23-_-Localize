@@ -138,6 +138,19 @@ DSARC FL 헤더:
 FAD 내부 엔트리 데이터에서 `NMPLTEX1` magic을 찾아 텍스처로 처리한다.
 현재 도구는 FAD 안의 텍스처를 BC7로 디코딩/인코딩한다.
 
+`res/fairy/ui.fad`에서 확인된 타이틀 화면 관련 엔트리:
+
+| 엔트리 | 추출 파일명 | 크기 | 내용 |
+| ---: | --- | --- | --- |
+| 44 | `044_tex.png` | 1920x1080 | 타이틀 화면 배경 사진 |
+| 48 | `048_tex.png` | 2048x2048 | 타이틀 로고, 기본 메인메뉴 atlas, 권리표기 버튼 |
+| 49 | `049_tex.png` | 2048x1024 | 권리표기/라이선스 화면 텍스트 |
+| 50-54 | `050_tex.png` - `054_tex.png` | 2048x2048 | 타이틀 로고/메뉴 변형 atlas. 권리표기 버튼 아이콘 또는 메뉴 구성이 조금씩 다름 |
+
+메인메뉴의 `はじめから`, `つづきから`, `オプション`, `おまけ`, `ゲームを終了` 등은
+DAT/CSV 문자열이 아니라 위 PNG atlas에 래스터라이즈되어 있다. 따라서 메인메뉴 한글화는
+`StringTableParam.dat` 수정만으로는 적용되지 않고, `ui.fad`의 48, 50-54번 텍스처를 수정해야 한다.
+
 ## 추출/수정/재삽입 workflow
 
 ### DAT 텍스트
@@ -186,6 +199,10 @@ python nltex_tool.py batch-encode edited_png_dir original_nltx_dir out_nltx_dir
 python fad_tool.py export ui.fad fad_png
 python fad_tool.py import ui.fad fad_png ui_new.fad
 ```
+
+특정 텍스처만 재삽입하려면 수정한 PNG만 별도 폴더에 넣어 `import`를 실행한다.
+예를 들어 메인메뉴만 수정할 때는 `048_tex.png`, `050_tex.png` - `054_tex.png`만 넣은 폴더를 사용하면
+다른 UI 텍스처를 다시 인코딩하지 않는다.
 
 ### 폰트
 
