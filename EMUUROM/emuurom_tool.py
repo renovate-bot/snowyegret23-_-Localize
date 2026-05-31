@@ -676,16 +676,17 @@ def karaoke_marked_line_to_runtime(line):
 
 
 def karaoke_dst_to_runtime(dst, src, row_id):
-    targets = [karaoke_marked_count(line) for line in src.split("\n") if line.strip()]
+    src_lines = [line for line in src.split("\n") if line.strip()]
     target_i = 0
     out_lines = []
     for line_no, line in enumerate(dst.split("\n"), 1):
         if not line.strip():
             out_lines.append(line)
             continue
-        if target_i >= len(targets):
+        if target_i >= len(src_lines):
             raise SystemExit(f"karaoke line count mismatch at {row_id} line {line_no}")
-        target = targets[target_i]
+        src_line = src_lines[target_i]
+        target = karaoke_marked_count(src_line)
         target_i += 1
         if line.strip() == "|" and target == 1:
             runtime = "¤_ "
@@ -696,7 +697,11 @@ def karaoke_dst_to_runtime(dst, src, row_id):
                 raise SystemExit(f"{exc} at {row_id} line {line_no}") from exc
         count = karaoke_runtime_count(runtime)
         if count != target:
-            raise SystemExit(f"karaoke beat count mismatch at {row_id} line {line_no}: got {count}, expected {target}")
+            raise SystemExit(
+                f"karaoke beat count mismatch at {row_id} line {line_no}\n"
+                f"src ({target}): {src_line}\n"
+                f"dst ({count}): {line}"
+            )
         out_lines.append(runtime)
     return "\n".join(out_lines)
 
