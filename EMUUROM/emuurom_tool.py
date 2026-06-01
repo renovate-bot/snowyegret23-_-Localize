@@ -993,7 +993,7 @@ LUA_NEWLINES_FUNCTION = r'''function newlines(s,w_pix,linecount)
 		end
 	end
 	local function char_width(c,small)
-		if krmode and krglyphs and krglyphs[c]then return (krwidth and krwidth[c]or krsrcw or 8)+1 end
+		if krmode and krglyphs and krglyphs[c]then return (krdraw and krdraw~=krsrcw)and krdraw+1 or krsrcw or 8 end
 		local b=strbyte(c,1)
 		if b and b>=224 then return 8 end
 		return small and 4 or 6
@@ -1250,7 +1250,19 @@ def patch_unicode_renderer(code, font_path, source_size=KRFONT_SOURCE_SIZE, draw
     ]
     for old in old_branches:
         code = code.replace(old, "")
-    mode = "\tlocal krmode=false\n\tif krhanguls then\n\t\tfor krc in pairs(utf8enumerate(fulltext or text))do\n\t\t\tif krhanguls[krc]then krmode=true break end\n\t\tend\n\tend\n"
+    mode = (
+        "\tlocal krmode=false\n"
+        "\tif krhanguls then\n"
+        "\t\tlocal krtxt=fulltext or text\n"
+        "\t\tlocal krpos=1\n"
+        "\t\twhile krpos<=strlen(krtxt)do\n"
+        "\t\t\tlocal krlen=utf8charbytes(krtxt,krpos)\n"
+        "\t\t\tlocal krc=strsub(krtxt,krpos,krpos+krlen-1)\n"
+        "\t\t\tif krhanguls[krc]then krmode=true break end\n"
+        "\t\t\tkrpos=krpos+krlen\n"
+        "\t\tend\n"
+        "\tend\n"
+    )
     if "local krmode=false" not in code:
         needle = "\tlocal w=0\n"
         if needle not in code:
