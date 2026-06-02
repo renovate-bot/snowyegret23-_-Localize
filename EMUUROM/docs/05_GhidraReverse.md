@@ -50,6 +50,36 @@ Lua print(...)
 
 ---
 
+## 원본 system font 위치
+
+`FUN_1400ce2b0`는 font tilesheet 포인터를 만들 때 runtime RAM의 `+0x14604`를 참조한다.
+
+정리:
+
+```text
+system font bitmap base = *(runtime + 0x30) + 0x14604
+regular font params     = *(runtime + 0x30) + 0x149fc / +0x149fd
+alt font params         = *(runtime + 0x30) + 0x14dfc / +0x14dfd
+```
+
+`FUN_1400cbba0` 내부에서는 문자 코드를 font sheet index로 직접 사용해 1bpp font bitmap을 읽는다. 최종 패치 구현도 원본 ASCII row를 `code * 8` 기준으로 재구성한다. 런타임 주소를 직접 `peek`하지 않고, 동일한 원본 TIC-80 system font bitmap을 `emuurom_tool.py` 안에 내장해 `krglyphs`로 합친다. 이렇게 해야 `.py` 교체만으로 다른 환경에서도 같은 결과를 만들 수 있다.
+
+---
+
+## 원본 `font()` skands 경로
+
+원본 `utf8printf`는 `⌘`, `æ`, `ä` 같은 문자를 `skands` table로 변환한 뒤 다음 경로로 그린다.
+
+```lua
+bpp(1)
+font(skands[char], x, y + y2, 0, 6, 8, fixed, scale)
+bpp(4)
+```
+
+TIC-80 `font()`는 현재 blit segment를 반전한 tilesheet를 사용한다. `bpp(1)` 상태에서는 foreground bank의 1bpp page 0을 읽으므로, `⌘`는 `skandstr`의 tile 38에서 나온다. 패치 구현은 이 glyph를 `extract`의 bank0 sprites chunk에서 직접 재구성해 `krglyphs`에 넣는다. 확인한 `⌘` bitmap은 `44aa7c287caa4400`이다.
+
+---
+
 ## Lua `rect` 경로
 
 `FUN_1400df7e0`은 Lua `rect(x,y,w,h,color)` wrapper이다. 인자 5개를 읽고 runtime 객체의 `+0x242b70` 함수 포인터를 호출한다.

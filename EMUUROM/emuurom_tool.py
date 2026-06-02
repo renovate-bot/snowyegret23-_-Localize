@@ -57,6 +57,33 @@ KRFONT_SOURCE_SIZE = 8
 KRFONT_DRAW_SIZE = 8
 KRFONT_THRESHOLD = 80
 KRFONT_EXTRA_CHARS = "?!.,:;+-/()[]'\""
+KRFONT_SKAND_CHARS = "æøÆØäöÄÖʔŋ⌘ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾗﾘﾙﾚﾛﾔﾕﾖﾜｦﾝｬｭｮｯｰﾞﾟ｡､「」"
+KRFONT_SKAND_START_TILE = 28
+TIC80_SYSTEM_FONT_HEX = (
+    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000c0c0c000c0000000a0a0000000000000a1f0a1f0a000000"
+    "1e050e140f00000011080402110000000205160916000000040200000000000008040404080000000204040402000000"
+    "04150e150400000000040e0400000000000000060402000000000e000000000000000006060000001008040201000000"
+    "0e1b17130e0000000c0e0c0c1e0000000f180e031f0000001f180c190e0000000c0e0b1f080000001f030f180f000000"
+    "0e030f130e0000001f180c06030000000e130e130e0000000e131e100e00000006060006060000000606000604020000"
+    "0804020408000000000e000e0000000002040804020000001e180c000c0000000e151d010e0000000e13131f13000000"
+    "0f130f130f0000000e1303130e0000000f1313130f0000001f030f031f0000001f030f03030000001e031b131e000000"
+    "13131f13130000001e0c0c0c1e0000001f18181b0e000000130b070b13000000030303031f0000001b1f1f1511000000"
+    "13171f1b130000000e1313130e0000000f13130f030000000e1313130e1000000f13130f130000001e070e1c0f000000"
+    "1e0c0c0c0c000000131313130e0000001313130e0400000011151f1f1b00000013130e131300000016161e0c0c000000"
+    "1f0c06031f0000000c0404040c00000001020408100000000604040406000000040a110000000000000000001e000000"
+    "0204000000000000001e19191e000000030f13130f000000001e07071e000000181e19191e000000000e1b070e000000"
+    "1c061f0606000000000e191f180e0000030f1313130000000c000c0c0c00000018001818190e000003130f1313000000"
+    "060606061c000000000b1f1515000000000f131313000000000e13130e000000000f13130f030000001e19191e180000"
+    "000f130303000000001e071c0f000000061f06061c000000001313130e0000000013130e040000000011151f1b000000"
+    "001b0e0e1b0000000019191e180e0000001f0c061f0000000c0406040c000000040404040400000006040c0406000000"
+    "00140a0000000000"
+)
+TIC80_SYSTEM_FONT_BYTES = bytes.fromhex(TIC80_SYSTEM_FONT_HEX)
 TEXT_MODULES = {"data/dialogue_en", "scenes/end-grey", "scenes/end-yellow"}
 DEFAULT_ORIGINAL_EXE = "emuurom_backup.exe"
 DEFAULT_EXTRACT_DIR = "extract"
@@ -822,6 +849,72 @@ def lua_key(ch):
     return "[" + lua_quote(ch, '"') + "]"
 
 
+def is_original_font_char(ch):
+    return 0x20 <= ord(ch) <= 0x7E and ch not in KRFONT_EXTRA_CHARS
+
+
+def original_glyph_rows(ch, size=KRFONT_SOURCE_SIZE):
+    if size != 8:
+        raise SystemExit("original TIC-80 font extraction requires --source-size 8")
+    cp = ord(ch)
+    if cp <= 0 or cp >= 128:
+        raise SystemExit(f"original TIC-80 font only supports ASCII: {ch!r}")
+    off = cp * 8
+    src_rows = TIC80_SYSTEM_FONT_BYTES[off:off + 8]
+    if len(src_rows) != 8:
+        raise SystemExit(f"original TIC-80 font row is missing for {ch!r}")
+    rows = []
+    max_x = 0
+    for src_row in src_rows:
+        row = 0
+        for x in range(8):
+            if (src_row >> x) & 1:
+                row |= 1 << (7 - x)
+                max_x = max(max_x, x + 1)
+        rows.append(row)
+    return "".join(f"{row:02x}" for row in rows), min(6, max(1, max_x))
+
+
+def skand_tile_index(ch):
+    index = KRFONT_SKAND_CHARS.find(ch)
+    return None if index < 0 else KRFONT_SKAND_START_TILE + index
+
+
+def skand_glyph_rows(ch, chunks, size=KRFONT_SOURCE_SIZE):
+    if size != 8:
+        raise SystemExit("skand font extraction requires --source-size 8")
+    tile = skand_tile_index(ch)
+    if tile is None:
+        raise SystemExit(f"skand glyph is not registered: {ch!r}")
+    tiles = find_chunk(chunks, TILES, 0)
+    sprites = find_chunk(chunks, SPRITES, 0)
+    if not tiles or not sprites:
+        raise SystemExit("bank0 tiles/sprites chunks are required for skand glyph extraction")
+    ram = pad(tiles["data"], TILE_BYTES * TILE_COUNT) + pad(sprites["data"], TILE_BYTES * TILE_COUNT)
+    bank_orig = 1
+    page_orig = 0
+    nb_pages = 4
+    tile_width = 32
+    ptr_size = TILE_BYTES
+    iy, ix = divmod(tile, 16)
+    xbuffer, xoffset = divmod(ix, nb_pages)
+    ptr_offset = (bank_orig * 16 + iy) * 16 + page_orig * 16 // nb_pages + xbuffer
+    byte_base = ptr_offset * ptr_size
+    offset = xoffset * 8
+    rows = []
+    max_x = 0
+    for y in range(size):
+        row = 0
+        for x in range(size):
+            pix_addr = offset + x + y * tile_width
+            value = ram[byte_base + (pix_addr >> 3)]
+            if (value >> (pix_addr & 7)) & 1:
+                row |= 1 << (size - 1 - x)
+                max_x = max(max_x, x + 1)
+        rows.append(row)
+    return "".join(f"{row:02x}" for row in rows), min(size, max(1, max_x))
+
+
 def collect_krfont_chars(code):
     chars = set()
     for _, _, _, _, src in scan_lua_strings(code):
@@ -832,13 +925,26 @@ def collect_krfont_chars(code):
     return sorted(chars)
 
 
-def build_unicode_block(font_path, chars, source_size=KRFONT_SOURCE_SIZE, draw_size=KRFONT_DRAW_SIZE, threshold=KRFONT_THRESHOLD):
+def build_unicode_block(font_path, chars, source_size=KRFONT_SOURCE_SIZE, draw_size=KRFONT_DRAW_SIZE, threshold=KRFONT_THRESHOLD, skand_chunks=None):
     rows = []
     widths = []
+    fixeds = []
     for ch in chars:
-        bits, width = glyph_rows(font_path, ch, source_size, threshold)
+        fixed_width = None
+        if ch in KRFONT_SKAND_CHARS:
+            if skand_chunks is None:
+                raise SystemExit("skand glyph extraction requires extracted chunks")
+            bits, width = skand_glyph_rows(ch, skand_chunks, source_size)
+            fixed_width = 6
+        elif is_original_font_char(ch):
+            bits, width = original_glyph_rows(ch, source_size)
+            fixed_width = 6
+        else:
+            bits, width = glyph_rows(font_path, ch, source_size, threshold)
         rows.append(f"\t{lua_key(ch)}=\"{bits}\",")
         widths.append(f"\t{lua_key(ch)}={width},")
+        if fixed_width:
+            fixeds.append(f"\t{lua_key(ch)}={fixed_width},")
     hanguls = [f"\t{lua_key(ch)}=true," for ch in chars if is_hangul(ch)]
     hex_width = math.ceil(source_size / 4)
     if draw_size == source_size:
@@ -869,7 +975,7 @@ def build_unicode_block(font_path, chars, source_size=KRFONT_SOURCE_SIZE, draw_s
             "\t\tend",
             "\tend",
             "\tlocal w=krwidth[char] or krsrcw",
-            "\treturn fixed and krsrcw*scale or (w+1)*scale",
+            "\treturn fixed and (krfixed and krfixed[char] or krsrcw)*scale or (w+1)*scale",
             "end",
         ]
     else:
@@ -903,7 +1009,7 @@ def build_unicode_block(font_path, chars, source_size=KRFONT_SOURCE_SIZE, draw_s
             "\t\t\tif (row&(1<<(krsrcw-1-sx)))~=0 then krrawrect(x+xx*scale,y+yy*scale,scale,color)end",
             "\t\tend",
             "\tend",
-            "\treturn fixed and (krdraw+1)*scale or (outw+1)*scale",
+            "\treturn fixed and (krfixed and krfixed[char] or krdraw+1)*scale or (outw+1)*scale",
             "end",
         ]
     return "\n".join([
@@ -917,6 +1023,9 @@ def build_unicode_block(font_path, chars, source_size=KRFONT_SOURCE_SIZE, draw_s
         "krwidth={",
         *widths,
         "}",
+        "krfixed={",
+        *fixeds,
+        "}",
         "krhanguls={",
         *hanguls,
         "}",
@@ -924,7 +1033,58 @@ def build_unicode_block(font_path, chars, source_size=KRFONT_SOURCE_SIZE, draw_s
     ])
 
 
-LUA_NEWLINES_FUNCTION = r'''function newlines(s,w_pix,linecount)
+LUA_CURSE_WIDTH_HELPERS = r'''function kr_curse_charbytes(txt,pos)
+	local b=strbyte(txt,pos)
+	if not b then return 0 end
+	if b<128 then return 1 elseif b<224 then return 2 elseif b<240 then return 3 else return 4 end
+end
+function kr_curse_char_width(c,small)
+	if krglyphs and krglyphs[c]then
+		if krfixed and krfixed[c]then return krfixed[c]end
+		return (krdraw and krdraw~=krsrcw)and krdraw+1 or krsrcw or 8
+	end
+	if skands and skands[c]then return small and 4 or 6 end
+	local b=strbyte(c,1)
+	if b and b>=224 then return 8 end
+	return small and 4 or 6
+end
+function kr_curse_text(txt,e,small)
+	local s=""
+	local sprs={288,304,320}
+	e=e or d
+	local p=1
+	local nchar=0
+	while p<=strlen(txt)do
+		local n=kr_curse_charbytes(txt,p)
+		local c=strsub(txt,p,p+n-1)
+		if c=="{"then
+			local j=txt:find("}",p,true)
+			if j then
+				s=s..strsub(txt,p,j)
+				p=j+1
+			else
+				s=s..c
+				p=p+n
+			end
+		elseif c==" "or c=="\t"then
+			s=s..c
+			p=p+n
+		else
+			s=s.."{spr:"..(sprs[e%3+1]+e%4)..":0}"
+			local extra=kr_curse_char_width(c,small)-(small and 8 or 6)
+			if extra~=0 then s=s.."{"..extra.."}"end
+			e=e+1
+			nchar=nchar+1
+			p=p+n
+		end
+	end
+	d=d+nchar
+	return s
+end
+'''
+
+
+LUA_NEWLINES_FUNCTION = LUA_CURSE_WIDTH_HELPERS + r'''function newlines(s,w_pix,linecount)
 	local function charbytes(txt,pos)
 		local b=strbyte(txt,pos)
 		if not b then return 0 end
@@ -959,8 +1119,26 @@ LUA_NEWLINES_FUNCTION = r'''function newlines(s,w_pix,linecount)
 		elseif c=="{"then
 			local j=s:find("}",i,true)
 			if j then
-				to(tokens,{k="special",v=strsub(s,i,j)})
-				i=j+1
+				local tok=strsub(s,i,j)
+				local body=strsub(tok,2,#tok-1)
+				if body:find("spr")then
+					local run=tok
+					local p=j+1
+					while p<=strlen(s)and strsub(s,p,p)=="{"do
+						local j2=s:find("}",p,true)
+						if not j2 then break end
+						local tok2=strsub(s,p,j2)
+						local body2=strsub(tok2,2,#tok2-1)
+						if not body2:find("spr")then break end
+						run=run..tok2
+						p=j2+1
+					end
+					to(tokens,{k="sprite_run",v=run})
+					i=p
+				else
+					to(tokens,{k="special",v=tok})
+					i=j+1
+				end
 			else
 				to(tokens,{k="word",v=c})
 				i=i+n
@@ -993,7 +1171,11 @@ LUA_NEWLINES_FUNCTION = r'''function newlines(s,w_pix,linecount)
 		end
 	end
 	local function char_width(c,small)
-		if krmode and krglyphs and krglyphs[c]then return (krdraw and krdraw~=krsrcw)and krdraw+1 or krsrcw or 8 end
+		if krmode and krglyphs and krglyphs[c]then
+			if krfixed and krfixed[c]then return small and 4 or krfixed[c] end
+			return (krdraw and krdraw~=krsrcw)and krdraw+1 or krsrcw or 8
+		end
+		if skands and skands[c]then return small and 4 or 6 end
 		local b=strbyte(c,1)
 		if b and b>=224 then return 8 end
 		return small and 4 or 6
@@ -1013,6 +1195,17 @@ LUA_NEWLINES_FUNCTION = r'''function newlines(s,w_pix,linecount)
 		if not i then return nil end
 		local j=body:find(":",i+1)or(#body+1)
 		return strsub(body,i+1,j-1)
+	end
+	local function sprite_run_width(tok,small)
+		local w=0
+		local p=1
+		while p<=strlen(tok)do
+			local j=tok:find("}",p,true)
+			if not j then break end
+			w=w+(small and 8 or 6)
+			p=j+1
+		end
+		return w,tok
 	end
 	local function special_width(tok,small)
 		local body=strsub(tok,2,#tok-1)
@@ -1077,10 +1270,14 @@ LUA_NEWLINES_FUNCTION = r'''function newlines(s,w_pix,linecount)
 			end
 		else
 			local w,out
-			if token.k=="special"then w,out=special_width(token.v,small)else out=token.v w=text_width(out,small)end
+			if token.k=="special"then w,out=special_width(token.v,small)
+			elseif token.k=="sprite_run"then w,out=sprite_run_width(token.v,small)
+			else out=token.v w=text_width(out,small)end
 			if line_w>0 and line_w+w>w_pix then
 				flush_line()
-				if token.k=="special"then w,out=special_width(token.v,small)else out=token.v w=text_width(out,small)end
+				if token.k=="special"then w,out=special_width(token.v,small)
+				elseif token.k=="sprite_run"then w,out=sprite_run_width(token.v,small)
+				else out=token.v w=text_width(out,small)end
 			end
 			if w>w_pix and token.k=="word"then add_word(out)else add_piece(out,w)end
 		end
@@ -1100,6 +1297,50 @@ def patch_newlines_function(code):
     if count == 0:
         raise SystemExit("newlines function was not found")
     return code
+
+
+def patch_dex_body_wrap_width(code):
+    old = 'newlines(F.text or "_",132,4)'
+    new = 'newlines(F.text or "_",128,4)'
+    if new in code:
+        return code
+    if old not in code:
+        raise SystemExit("monster dex body wrap width call was not found")
+    return code.replace(old, new, 1)
+
+
+def patch_kylt_blurb_nil_entity(code):
+    old = 'text= E.alinen and "\\n{rune:"..run.."}\\n"..run2..alitxt'
+    new = 'text= E and E.alinen and "\\n{rune:"..run.."}\\n"..run2..alitxt'
+    if new in code:
+        return code
+    if old not in code:
+        raise SystemExit("kylt blurb alinen branch was not found")
+    return code.replace(old, new, 1)
+
+
+def patch_line_buffet_nil_entity(code):
+    replacements = [
+        ('if E.type=="kylt"and words[1]then', 'if E and E.type=="kylt"and words[1]then'),
+        ('if E.type=="kylt"then to(words,1,"~")end', 'if E and E.type=="kylt"then to(words,1,"~")end'),
+    ]
+    for old, new in replacements:
+        if new in code:
+            continue
+        if old not in code:
+            raise SystemExit(f"line buffet nil-entity pattern was not found: {old}")
+        code = code.replace(old, new, 1)
+    return code
+
+
+def patch_line_buffet_curse_text(code):
+    old = '\t\tif #line.words==0 then to(line.words,{text=""})end\n\t\tline.text=nil'
+    new = '\t\tif #line.words==0 then to(line.words,{text=""})end\n\t\tline.curseText=line.text\n\t\tline.text=nil'
+    if new in code:
+        return code
+    if old not in code:
+        raise SystemExit("line buffet text cleanup block was not found")
+    return code.replace(old, new, 1)
 
 
 KARAOKE_GETLINE_CURRTOQUEUE = '''	getLine=function(E,line)
@@ -1197,6 +1438,39 @@ TITLE_LOAD_PREFIX_TEST_MODE = '''\t\t\telseif mode=="load"or mode=="new"then
 \t\t\t\tCS:exit()'''
 
 
+TITLE_LOAD_PREFIX_TEST_BOSS = '''\t\t\telseif mode=="load"or mode=="new"then
+\t\t\t\tif mode=="load"then
+\t\t\t\t\tcam.setRoom(13)
+\t\t\t\t\tCS:exit()
+\t\t\t\t\tstartGam:enter(0,0,0,nil,function()
+\t\t\t\t\t\tcam.setRoom(88)
+\t\t\t\t\t\tskipToMenu[1]=false
+\t\t\t\t\t\tW.pending=nil
+\t\t\t\t\t\tP:setLoc(232*8,132*8)
+\t\t\t\t\t\tcam.setMan(P)
+\t\t\t\t\t\tLYN.roomdat[1]=LYN.finalCaveForm+1
+\t\t\t\t\t\tLYN.roomdat[2][LYN.finalCaveForm+1]=false
+\t\t\t\t\t\ttoForm(LYN,LYN.finalCaveForm+1,nil,nil,true)
+\t\t\t\t\t\tLYN:setroom()
+\t\t\t\t\t\tlocal entr=D:entry(LYN)
+\t\t\t\t\t\tentr.entrdat[1]=true
+\t\t\t\t\t\tif entr.forms[LYN.form]then entr.forms[LYN.form].found=false end
+\t\t\t\t\t\tif LYN.EDATS and LYN.EDATS[LYN.form]then LYN.EDATS[LYN.form][1]=false end
+\t\t\t\t\t\tLYN:unHide()
+\t\t\t\t\t\tcam.curateEnts()
+\t\t\t\t\t\tW.endSeq:go(1)
+\t\t\t\t\t\tTS:delay(30,function()
+\t\t\t\t\t\t\tPs.activE=LYN
+\t\t\t\t\t\t\tD:scnDone(LYN,entr)
+\t\t\t\t\t\t\tif LYN.onScanDone then LYN:onScanDone()end
+\t\t\t\t\t\tend)
+\t\t\t\t\tend)
+\t\t\t\t\treturn
+\t\t\t\tend
+\t\t\t\tcam.setRoom(13)
+\t\t\t\tCS:exit()'''
+
+
 def patch_test_mode(code):
     changed = False
     if FINALBOSS_UPD_PREFIX not in code:
@@ -1211,6 +1485,14 @@ def patch_test_mode(code):
     elif TITLE_LOAD_PREFIX_TEST_MODE not in code:
         code = code.replace(TITLE_LOAD_PREFIX, TITLE_LOAD_PREFIX_TEST_MODE, 1)
         changed = True
+    return code
+
+
+def patch_test_boss_mode(code):
+    if TITLE_LOAD_PREFIX_TEST_BOSS not in code:
+        if TITLE_LOAD_PREFIX not in code:
+            raise SystemExit("title load branch was not found")
+        code = code.replace(TITLE_LOAD_PREFIX, TITLE_LOAD_PREFIX_TEST_BOSS, 1)
     return code
 
 
@@ -1241,12 +1523,108 @@ def patch_pc_cursor_renderer(code):
     return code.replace(PC_CURSOR_OLD, PC_CURSOR_NEW, 1)
 
 
-def patch_unicode_renderer(code, font_path, source_size=KRFONT_SOURCE_SIZE, draw_size=KRFONT_DRAW_SIZE, threshold=KRFONT_THRESHOLD, base_code=None):
+def patch_dex_body_word_colors(code):
+    old = (
+        "\t\tlocal color=15\n"
+        "\t\tfor _,word in ipairs(words)do\n"
+        "\t\t\tlocal prettyword=word:gsub(\"%'s\",\"\"):gsub(\"[%c%p%s]\",\"\")\n"
+        "\t\t\tcolor=line.mode~=\"nocol\"and prettyword:len()>1\n"
+        "\t\t\t\tand prettyword==prettyword:upper()\n"
+        "\t\t\t\tand not tonumber(prettyword)\n"
+        "\t\t\t\tand 14 or line.col\n"
+    )
+    new = (
+        "\t\tlocal color=E and E.type==\"mon\"and i>F.skipline and 14 or 15\n"
+        "\t\tfor _,word in ipairs(words)do\n"
+        "\t\t\tlocal prettyword=word:gsub(\"%'s\",\"\"):gsub(\"[%c%p%s]\",\"\")\n"
+        "\t\t\tcolor=line.mode~=\"nocol\"and prettyword:len()>1\n"
+        "\t\t\t\tand prettyword==prettyword:upper()\n"
+        "\t\t\t\tand not tonumber(prettyword)\n"
+        "\t\t\t\tand 14 or line.col or color\n"
+    )
+    if new in code:
+        return code
+    unguarded = new.replace("E and E.type", "E.type")
+    if unguarded in code:
+        return code.replace(unguarded, new, 1)
+    if old not in code:
+        raise SystemExit("dex blurb word color block was not found")
+    return code.replace(old, new, 1)
+
+
+def patch_dex_curse_widths(code):
+    old = (
+        "\t\t\tif showPartial>0 then\n"
+        "\t\t\t\tprintWord(utf8sub(word.text,1,showPartial),rowLetterX)\n"
+        "\t\t\t\tprintWord(curse(wordlen-showPartial,j+showPartial),rowLetterX+showPartial*6)\n"
+        "\t\t\t\trowLetterX=rowLetterX+printWord(word.text..\" \",240)\n"
+        "\t\t\telse\n"
+        "\t\t\t\tlocal text=showCurse and notCurly and curse(wordlen,j)or word.text\n"
+        "\t\t\t\trowLetterX=rowLetterX+printWord(text..\" \",rowLetterX)\n"
+        "\t\t\tend"
+    )
+    new = (
+        "\t\t\tif showPartial>0 then\n"
+        "\t\t\t\tlocal prefix=utf8sub(word.text,1,showPartial)\n"
+        "\t\t\t\tlocal suffix=utf8sub(word.text,showPartial+1)\n"
+        "\t\t\t\tprintWord(prefix,rowLetterX)\n"
+        "\t\t\t\tprintWord(kr_curse_text(suffix,j+showPartial,smallfont),rowLetterX+getcenterwidth(prefix,true,1,smallfont))\n"
+        "\t\t\t\trowLetterX=rowLetterX+printWord(word.text..\" \",240)\n"
+        "\t\t\telse\n"
+        "\t\t\t\tlocal text=showCurse and notCurly and kr_curse_text(word.text,j,smallfont)or word.text\n"
+        "\t\t\t\trowLetterX=rowLetterX+printWord(text..\" \",rowLetterX)\n"
+        "\t\t\tend"
+    )
+    if new in code:
+        return code
+    if old not in code:
+        raise SystemExit("dex curse text draw block was not found")
+    return code.replace(old, new, 1)
+
+
+def patch_dex_page_clamp(code):
+    old = "\tif F.numPages==1 then D.page=1 end"
+    new = (
+        "\tif F.numPages==1 then D.page=1 end\n"
+        "\tif D.page<1 then D.page=1 end\n"
+        "\tif D.page>F.numPages then D.page=F.numPages end"
+    )
+    if new in code:
+        return code
+    if old not in code:
+        raise SystemExit("dex page clamp insertion point was not found")
+    return code.replace(old, new, 1)
+
+
+def patch_dex_static_curse_lines(code):
+    old = (
+        "\t\tlocal rowLetterX=0\n"
+        "\n"
+        "\t\tfor j,word in ipairs(blrbLine.words)do\n"
+    )
+    new = (
+        "\t\tlocal rowLetterX=0\n"
+        "\t\tif showCurse and not curseAnim and blrbLine.curseText then\n"
+        "\t\t\tutf8print(kr_curse_text(blrbLine.curseText,i,smallfont),x+line_x+1,y+line_y+1,line_color,true,1,false,smallfont)\n"
+        "\t\t\treturn line_x,line_y+8,char\n"
+        "\t\tend\n"
+        "\n"
+        "\t\tfor j,word in ipairs(blrbLine.words)do\n"
+    )
+    if new in code:
+        return code
+    if old not in code:
+        raise SystemExit("dex row word loop block was not found")
+    return code.replace(old, new, 1)
+
+
+def patch_unicode_renderer(code, font_path, source_size=KRFONT_SOURCE_SIZE, draw_size=KRFONT_DRAW_SIZE, threshold=KRFONT_THRESHOLD, base_code=None, skand_chunks=None):
     code = re.sub(r"\nkrglyphs=\{.*?\nend\n", "\n", code, count=1, flags=re.S)
     code = re.sub(r"\n(?:krw=\d+\nkrh=\d+\n|krsrcw=\d+\nkrsrch=\d+\nkrdraw=\d+\n)krhex=\d+\n", "\n", code, count=1)
     old_branches = [
         '\t\telseif krglyphs and krglyphs[char]then\n\t\t\tx=x+krfont(char,x,y,color,fixed,scale)\n',
         '\t\telseif krglyphs and krglyphs[char] and (krmode or krhanguls[char])then\n\t\t\tx=x+krfont(char,x,y,color,fixed,scale)\n',
+        '\t\telseif ((krglyphs and krglyphs[char])or(krsys and krsys[char])) and (krmode or krhanguls[char])then\n\t\t\tx=x+krfont(char,x,y,color,fixed,scale)\n',
     ]
     for old in old_branches:
         code = code.replace(old, "")
@@ -1279,11 +1657,19 @@ def patch_unicode_renderer(code, font_path, source_size=KRFONT_SOURCE_SIZE, draw
         marker = "skands=utf8enumerate(skandstr)\n"
         if marker not in code:
             raise SystemExit("skandstr initialization was not found")
-        block = build_unicode_block(font_path, chars, source_size, draw_size, threshold)
+        block = build_unicode_block(font_path, chars, source_size, draw_size, threshold, skand_chunks)
         code = code.replace(marker, marker + block + "\n", 1)
     code = patch_newlines_function(code)
+    code = patch_dex_body_wrap_width(code)
+    code = patch_kylt_blurb_nil_entity(code)
+    code = patch_line_buffet_nil_entity(code)
+    code = patch_line_buffet_curse_text(code)
+    code = patch_dex_curse_widths(code)
+    code = patch_dex_page_clamp(code)
+    code = patch_dex_static_curse_lines(code)
     code = patch_karaoke_renderer(code, base_code)
     code = patch_pc_cursor_renderer(code)
+    code = patch_dex_body_word_colors(code)
     return code, len(chars)
 
 
@@ -1442,18 +1828,23 @@ def apply_text(out_dir, csv_path):
     return dst, count
 
 
-def patch_unicode(out_dir, font_path, source_size, draw_size, threshold, test_mode=False):
+def patch_unicode(out_dir, font_path, source_size, draw_size, threshold, test_mode=False, test_boss=False):
+    if test_mode and test_boss:
+        raise SystemExit("--test-mode and --test-boss cannot be used together")
     code_path = out_dir / "code_patched.lua"
     if not code_path.exists():
         code_path = out_dir / "code.lua"
     base_path = out_dir / "code.lua"
     base_code = read_text(base_path) if base_path.exists() else None
-    code, count = patch_unicode_renderer(read_text(code_path), font_path, source_size, draw_size, threshold, base_code)
+    _, _, _, chunks, _ = load_extracted(out_dir)
+    code, count = patch_unicode_renderer(read_text(code_path), font_path, source_size, draw_size, threshold, base_code, chunks)
     if test_mode:
         code = patch_test_mode(code)
+    if test_boss:
+        code = patch_test_boss_mode(code)
     dst = out_dir / "code_unicode.lua"
     write_text(dst, code)
-    mode = " test_mode=on" if test_mode else ""
+    mode = " test_mode=on" if test_mode else " test_boss=on" if test_boss else ""
     print(f"patched unicode glyphs={count} source_size={source_size} draw_size={draw_size} threshold={threshold}{mode} -> {dst}")
     return dst, count
 
@@ -1491,7 +1882,7 @@ def cmd_apply_text(args):
 
 def cmd_patch_unicode(args):
     out_dir = Path(args.dir or args.extract_dir)
-    patch_unicode(out_dir, Path(args.font), int(args.source_size, 0), int(args.draw_size, 0), int(args.threshold, 0), args.test_mode)
+    patch_unicode(out_dir, Path(args.font), int(args.source_size, 0), int(args.draw_size, 0), int(args.threshold, 0), args.test_mode, args.test_boss)
 
 
 def cmd_build(args):
@@ -1502,7 +1893,7 @@ def cmd_build(args):
 def cmd_import(args):
     out_dir = Path(args.extract_dir)
     apply_text(out_dir, Path(args.text_csv))
-    patch_unicode(out_dir, Path(args.font), int(args.source_size, 0), int(args.draw_size, 0), int(args.threshold, 0), args.test_mode)
+    patch_unicode(out_dir, Path(args.font), int(args.source_size, 0), int(args.draw_size, 0), int(args.threshold, 0), args.test_mode, args.test_boss)
     if not args.no_build:
         build_output(Path(args.original_exe), out_dir, Path(args.output_exe), cart_path(args, out_dir, True), not args.no_import_images)
 
@@ -1554,6 +1945,7 @@ def main():
     p.add_argument("--draw-size", default=str(KRFONT_DRAW_SIZE))
     p.add_argument("--threshold", default=str(KRFONT_THRESHOLD))
     p.add_argument("--test-mode", action="store_true")
+    p.add_argument("--test-boss", action="store_true")
     p.set_defaults(func=cmd_patch_unicode)
     p = sub.add_parser("build")
     p.add_argument("exe", nargs="?")
@@ -1578,6 +1970,7 @@ def main():
     p.add_argument("--draw-size", default=str(KRFONT_DRAW_SIZE))
     p.add_argument("--threshold", default=str(KRFONT_THRESHOLD))
     p.add_argument("--test-mode", action="store_true")
+    p.add_argument("--test-boss", action="store_true")
     p.set_defaults(func=cmd_import)
     p = sub.add_parser("add-sections")
     p.add_argument("exe")
