@@ -27,6 +27,8 @@
     - 한국어 키보드 커스텀 입력 모드(BepInEx) 구현
 - [Psychonauts 1](./Psychonauts%201/)
     - 실행 파일(.exe) 패치, 폰트 생성 및 텍스트(.lub) 툴 구현
+- [SRW N64](./SRW%20N64/)
+    - N64 ROM 리소스/텍스트 테이블 파싱, 14x14 폰트 확장 및 번역 적용 빌드 스크립트 구현
 - [Suzerain](./Suzerain/)
     - 로컬라이제이션 모드 및 Articy 데이터 덤프 툴 구현
 - [Vision Soft Reset](./Vision%20Soft%20Reset/)

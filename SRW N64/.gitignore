@@ -1,0 +1,14 @@
+games/
+_build/
+*.n64
+*.z64
+*.v64
+*.rom
+*.ips
+*.bps
+*.xdelta
+*.ttf
+*.otf
+*.ttc
+__pycache__/
+*.pyc
